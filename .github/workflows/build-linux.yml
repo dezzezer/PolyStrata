@@ -63,11 +63,8 @@ jobs:
         run: |
           mkdir -p out
           cp build-poly/strata-poly out/
-          cp build-poly/libstrata_kq.so out/ 2>/dev/null || true
-          nvcc --version > out/BUILD-INFO.txt
-          cmake --version >> out/BUILD-INFO.txt
-          uname -a >> out/BUILD-INFO.txt
-          git -C . rev-parse HEAD >> out/BUILD-INFO.txt
+          find build-poly -maxdepth 1 -name '*.so*' -type f -exec cp -v {} out/ \;
+          { nvcc --version; cmake --version; uname -a; echo "commit $GITHUB_SHA"; } > out/BUILD-INFO.txt
           ls -la out
           ldd out/strata-poly | head -40 || true
 

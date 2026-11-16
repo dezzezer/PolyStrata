@@ -52,6 +52,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DSTRATA_ENABLE_CUDA=ON \
             -DSTRATA_BUILD_TESTS=OFF \
+            -DSTRATA_PORTABLE=ON \
             -DSTRATA_Q6K_EXPERTS=ON \
             -DSTRATA_MMQ_KQUANTS=ON \
             -DCMAKE_CUDA_ARCHITECTURES="${{ inputs.cuda_archs || '86' }}" \

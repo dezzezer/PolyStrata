@@ -1,0 +1,79 @@
+name: build-linux-engine
+
+# Builds the CUDA strata-poly engine on GitHub's Linux runners (no local CUDA Toolkit needed):
+# the build does not touch a GPU, so a plain hosted runner works. The artifact carries the engine
+# binary and its libstrata_kq.so, which run against CUDA 13 user-space libraries only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cuda_archs:
+        description: "CMAKE_CUDA_ARCHITECTURES (semicolon separated, e.g. 86 or 75;80;86;89;120)"
+        required: false
+        default: "86"
+      cuda_image:
+        description: "CUDA devel image tag"
+        required: false
+        default: "13.0.3-devel-ubuntu24.04"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-linux.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    container:
+      image: nvidia/cuda:${{ inputs.cuda_image || '13.0.3-devel-ubuntu24.04' }}
+    steps:
+      - name: Disk before
+        run: df -h / /__w 2>/dev/null || df -h /
+
+      - name: Install build dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            cmake ninja-build build-essential git ca-certificates libcurl4-openssl-dev
+          cmake --version
+          nvcc --version
+          nproc
+
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-poly -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSTRATA_ENABLE_CUDA=ON \
+            -DSTRATA_BUILD_TESTS=OFF \
+            -DSTRATA_Q6K_EXPERTS=ON \
+            -DSTRATA_MMQ_KQUANTS=ON \
+            -DCMAKE_CUDA_ARCHITECTURES="${{ inputs.cuda_archs || '86' }}" \
+            -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc
+          df -h /
+
+      - name: Build strata-poly
+        run: |
+          cmake --build build-poly --target strata-poly -j"$(nproc)"
+          df -h /
+
+      - name: Package
+        run: |
+          mkdir -p out
+          cp build-poly/strata-poly out/
+          cp build-poly/libstrata_kq.so out/ 2>/dev/null || true
+          nvcc --version > out/BUILD-INFO.txt
+          cmake --version >> out/BUILD-INFO.txt
+          uname -a >> out/BUILD-INFO.txt
+          git -C . rev-parse HEAD >> out/BUILD-INFO.txt
+          ls -la out
+          ldd out/strata-poly | head -40 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: strata-poly-linux-x64-cuda13
+          path: out/
+          compression-level: 0
+          retention-days: 14

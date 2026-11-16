@@ -12,9 +12,9 @@ on:
         required: false
         default: "86"
       cuda_image:
-        description: "CUDA devel image tag"
+        description: "CUDA devel image tag (keep the distro at or below the target's glibc)"
         required: false
-        default: "13.0.3-devel-ubuntu24.04"
+        default: "13.0.3-devel-ubuntu22.04"
   push:
     branches: [main]
     paths:
@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     container:
-      image: nvidia/cuda:${{ inputs.cuda_image || '13.0.3-devel-ubuntu24.04' }}
+      image: nvidia/cuda:${{ inputs.cuda_image || '13.0.3-devel-ubuntu22.04' }}
     steps:
       - name: Disk before
         run: df -h / /__w 2>/dev/null || df -h /
@@ -35,7 +35,11 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           apt-get update
           apt-get install -y --no-install-recommends \
-            cmake ninja-build build-essential git ca-certificates libcurl4-openssl-dev
+            build-essential git ca-certificates libcurl4-openssl-dev ninja-build python3 python3-pip
+          # Ubuntu 22.04's cmake is 3.22 and CMakeLists.txt asks for 3.24: take one from pip
+          if ! cmake --version 2>/dev/null | head -1 | grep -qE 'version 3\.(2[4-9]|[3-9][0-9])'; then
+            python3 -m pip install --no-cache-dir "cmake>=3.28,<4"
+          fi
           cmake --version
           nvcc --version
           nproc
